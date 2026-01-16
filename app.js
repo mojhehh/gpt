@@ -258,6 +258,7 @@ class UnfilteredAI {
         this.responseStyle = document.getElementById('responseStyle');
         this.codeStyle = document.getElementById('codeStyle');
         this.saveSettingsBtn = document.getElementById('saveSettings');
+        this.typingSpeed = document.getElementById('typingSpeed');
         this.clearAllDataBtn = document.getElementById('clearAllData');
         this.clearAllMemoryBtn = document.getElementById('clearAllMemory');
         this.memoryList = document.getElementById('memoryList');
@@ -567,12 +568,23 @@ class UnfilteredAI {
         const contentDiv = messageDiv.querySelector('.message-content');
         
         if (role === 'assistant') {
-            contentDiv.innerHTML = this.parseMarkdown(content);
-            this.highlightCode(contentDiv);
-            this.addCopyButtons(contentDiv);
-            this.fixLinks(contentDiv);
+            const typingDelay = parseInt(this.settings.typingSpeed ?? '15');
+            
+            if (animate && typingDelay > 0) {
+                // Typing animation
+                this.messagesContainer.appendChild(messageDiv);
+                this.typeText(contentDiv, content, typingDelay);
+            } else {
+                // Instant display
+                contentDiv.innerHTML = this.parseMarkdown(content);
+                this.highlightCode(contentDiv);
+                this.addCopyButtons(contentDiv);
+                this.fixLinks(contentDiv);
+                this.messagesContainer.appendChild(messageDiv);
+            }
         } else {
             contentDiv.textContent = content;
+            this.messagesContainer.appendChild(messageDiv);
         }
 
         // Add copy message button handler
@@ -586,8 +598,36 @@ class UnfilteredAI {
             });
         });
 
-        this.messagesContainer.appendChild(messageDiv);
         this.scrollToBottom();
+    }
+
+    async typeText(contentDiv, fullText, delay) {
+        // Parse markdown first to get final HTML
+        const finalHTML = this.parseMarkdown(fullText);
+        
+        // For typing effect, we'll show characters progressively
+        let charIndex = 0;
+        const plainText = fullText;
+        
+        const typeNextChunk = () => {
+            if (charIndex < plainText.length) {
+                // Show progressively more of the text
+                const partialText = plainText.substring(0, charIndex + 5);
+                contentDiv.innerHTML = this.parseMarkdown(partialText);
+                charIndex += 5;
+                this.scrollToBottom();
+                setTimeout(typeNextChunk, delay);
+            } else {
+                // Done - show final formatted version
+                contentDiv.innerHTML = finalHTML;
+                this.highlightCode(contentDiv);
+                this.addCopyButtons(contentDiv);
+                this.fixLinks(contentDiv);
+                this.scrollToBottom();
+            }
+        };
+        
+        typeNextChunk();
     }
 
     parseMarkdown(text) {
@@ -744,13 +784,15 @@ class UnfilteredAI {
         this.customInstructions.value = this.settings.customInstructions || '';
         this.responseStyle.value = this.settings.responseStyle || '';
         this.codeStyle.value = this.settings.codeStyle || '';
+        this.typingSpeed.value = this.settings.typingSpeed ?? '15';
     }
 
     async saveSettings() {
         this.settings = {
             customInstructions: this.customInstructions.value.trim(),
             responseStyle: this.responseStyle.value,
-            codeStyle: this.codeStyle.value
+            codeStyle: this.codeStyle.value,
+            typingSpeed: this.typingSpeed.value
         };
         await this.saveData();
         this.closeSettingsModal();
