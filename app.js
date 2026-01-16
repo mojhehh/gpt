@@ -102,12 +102,7 @@ class UnfilteredAI {
     }
 
     async loadData() {
-        // Always load from localStorage first (instant)
-        this.chats = JSON.parse(localStorage.getItem('unfiltered_chats') || '[]');
-        this.settings = JSON.parse(localStorage.getItem('unfiltered_settings') || '{}');
-        this.memories = JSON.parse(localStorage.getItem('unfiltered_memories') || '[]');
-        
-        // Then try Firebase
+        // Try Firebase FIRST
         if (firebaseEnabled && db) {
             try {
                 const [chatsSnap, settingsSnap, memoriesSnap] = await Promise.all([
@@ -138,19 +133,22 @@ class UnfilteredAI {
                     );
                     localStorage.setItem('unfiltered_memories', JSON.stringify(this.memories));
                 }
+                
+                console.log('Loaded from Firebase');
+                return; // Success, don't need localStorage
             } catch (e) {
-                console.log('Firebase load error:', e);
+                console.log('Firebase load error, falling back to localStorage:', e);
             }
         }
+        
+        // Fallback to localStorage only if Firebase failed
+        this.chats = JSON.parse(localStorage.getItem('unfiltered_chats') || '[]');
+        this.settings = JSON.parse(localStorage.getItem('unfiltered_settings') || '{}');
+        this.memories = JSON.parse(localStorage.getItem('unfiltered_memories') || '[]');
     }
 
     async saveData() {
-        // Always save to localStorage first
-        localStorage.setItem('unfiltered_chats', JSON.stringify(this.chats));
-        localStorage.setItem('unfiltered_settings', JSON.stringify(this.settings));
-        localStorage.setItem('unfiltered_memories', JSON.stringify(this.memories));
-        
-        // Then save to Firebase
+        // Save to Firebase FIRST
         if (firebaseEnabled && db) {
             try {
                 const chatsObj = {};
@@ -164,10 +162,21 @@ class UnfilteredAI {
                     db.ref(`users/${this.userId}/settings`).set(this.settings),
                     db.ref(`users/${this.userId}/memories`).set(memoriesObj)
                 ]);
+                
+                // Also backup to localStorage
+                localStorage.setItem('unfiltered_chats', JSON.stringify(this.chats));
+                localStorage.setItem('unfiltered_settings', JSON.stringify(this.settings));
+                localStorage.setItem('unfiltered_memories', JSON.stringify(this.memories));
+                return;
             } catch (e) {
-                console.log('Firebase save error:', e);
+                console.log('Firebase save error, saving to localStorage:', e);
             }
         }
+        
+        // Fallback to localStorage only if Firebase failed
+        localStorage.setItem('unfiltered_chats', JSON.stringify(this.chats));
+        localStorage.setItem('unfiltered_settings', JSON.stringify(this.settings));
+        localStorage.setItem('unfiltered_memories', JSON.stringify(this.memories));
     }
 
     bindElements() {
