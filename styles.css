@@ -159,10 +159,11 @@ body {
 .message {
     padding: 1.5rem 0;
     animation: fadeIn 0.3s ease-out;
+    background: #1a1a1a;
 }
 
-.message.user { background: var(--bg-user); }
-.message.assistant { background: transparent; }
+.message.user { background: #1a1a1a; }
+.message.assistant { background: #1a1a1a; }
 
 .message-inner {
     max-width: 800px;
@@ -444,9 +445,10 @@ body {
     max-height: 200px;
     outline: none;
     font-family: inherit;
+    padding-top: 0.5rem;
 }
 
-.input-box textarea::placeholder { color: var(--text-secondary); }
+.input-box textarea::placeholder { color: #666; }
 
 .send-btn {
     width: 40px;
@@ -759,11 +761,16 @@ body {
 .memory-saved-indicator {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    padding: 0.5rem 0;
-    font-size: 0.75rem;
+    padding: 1rem 0;
+    font-size: 0.85rem;
     color: #888;
+    background: rgba(255, 140, 66, 0.08);
+    border-radius: 10px;
+    margin: 0.5rem 1.5rem;
+    max-width: 800px;
 }
 
-.memory-saved-indicator svg { width: 14px; height: 14px; }
+.memory-saved-indicator svg { width: 16px; height: 16px; color: var(--primary); }
 

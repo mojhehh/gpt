@@ -39,10 +39,51 @@ class UnfilteredAI {
         this.bindElements();
         this.bindEvents();
         await this.loadFromFirebase();
+        this.setupRealtimeListeners();
         this.renderChatList();
         if (this.chats.length > 0) {
             this.loadChat(this.chats[0].id);
         }
+    }
+
+    setupRealtimeListeners() {
+        // Real-time listener for chats
+        db.ref(`users/${this.userId}/chats`).on('value', (snapshot) => {
+            const chatsData = snapshot.val();
+            if (chatsData) {
+                this.chats = Object.values(chatsData).sort((a, b) => 
+                    new Date(b.createdAt) - new Date(a.createdAt)
+                );
+            } else {
+                this.chats = [];
+            }
+            this.renderChatList();
+        });
+
+        // Real-time listener for memories
+        db.ref(`users/${this.userId}/memories`).on('value', (snapshot) => {
+            const memoriesData = snapshot.val();
+            if (memoriesData) {
+                this.memories = Object.values(memoriesData).sort((a, b) => 
+                    new Date(b.createdAt) - new Date(a.createdAt)
+                );
+            } else {
+                this.memories = [];
+            }
+            // Update memory list if settings modal is open on memory tab
+            if (this.settingsModal.classList.contains('active') && 
+                document.getElementById('memoryPanel').classList.contains('active')) {
+                this.renderMemoryList();
+            }
+        });
+
+        // Real-time listener for settings
+        db.ref(`users/${this.userId}/settings`).on('value', (snapshot) => {
+            const settingsData = snapshot.val();
+            if (settingsData) {
+                this.settings = settingsData;
+            }
+        });
     }
 
     async loadFromFirebase() {
