@@ -458,9 +458,10 @@ body {
     outline: none;
     font-family: inherit;
     padding-top: 0.5rem;
+    text-align: center;
 }
 
-.input-box textarea::placeholder { color: #666; }
+.input-box textarea::placeholder { color: #666; text-align: center; }
 
 .send-btn {
     width: 40px;
