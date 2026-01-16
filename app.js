@@ -10,9 +10,16 @@ const firebaseConfig = {
     measurementId: "G-YS4Q3RNGPZ"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// Initialize Firebase with error handling
+let db = null;
+let firebaseEnabled = false;
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    firebaseEnabled = true;
+} catch (e) {
+    console.log('Firebase init failed:', e);
+}
 
 class UnfilteredAI {
     constructor() {
@@ -38,8 +45,10 @@ class UnfilteredAI {
     async init() {
         this.bindElements();
         this.bindEvents();
-        await this.loadFromFirebase();
-        this.setupRealtimeListeners();
+        await this.loadData();
+        if (firebaseEnabled) {
+            this.setupRealtimeListeners();
+        }
         this.renderChatList();
         if (this.chats.length > 0) {
             this.loadChat(this.chats[0].id);
@@ -47,6 +56,8 @@ class UnfilteredAI {
     }
 
     setupRealtimeListeners() {
+        if (!db) return;
+        
         // Real-time listener for chats
         db.ref(`users/${this.userId}/chats`).on('value', (snapshot) => {
             const chatsData = snapshot.val();
@@ -54,10 +65,11 @@ class UnfilteredAI {
                 this.chats = Object.values(chatsData).sort((a, b) => 
                     new Date(b.createdAt) - new Date(a.createdAt)
                 );
-            } else {
-                this.chats = [];
+                localStorage.setItem('unfiltered_chats', JSON.stringify(this.chats));
             }
             this.renderChatList();
+        }, (error) => {
+            console.log('Firebase chats listener error:', error);
         });
 
         // Real-time listener for memories
@@ -67,14 +79,14 @@ class UnfilteredAI {
                 this.memories = Object.values(memoriesData).sort((a, b) => 
                     new Date(b.createdAt) - new Date(a.createdAt)
                 );
-            } else {
-                this.memories = [];
+                localStorage.setItem('unfiltered_memories', JSON.stringify(this.memories));
             }
-            // Update memory list if settings modal is open on memory tab
-            if (this.settingsModal.classList.contains('active') && 
-                document.getElementById('memoryPanel').classList.contains('active')) {
+            if (this.settingsModal && this.settingsModal.classList.contains('active') && 
+                document.getElementById('memoryPanel')?.classList.contains('active')) {
                 this.renderMemoryList();
             }
+        }, (error) => {
+            console.log('Firebase memories listener error:', error);
         });
 
         // Real-time listener for settings
@@ -82,66 +94,80 @@ class UnfilteredAI {
             const settingsData = snapshot.val();
             if (settingsData) {
                 this.settings = settingsData;
+                localStorage.setItem('unfiltered_settings', JSON.stringify(this.settings));
             }
+        }, (error) => {
+            console.log('Firebase settings listener error:', error);
         });
     }
 
-    async loadFromFirebase() {
-        try {
-            // Load chats
-            const chatsSnapshot = await db.ref(`users/${this.userId}/chats`).once('value');
-            const chatsData = chatsSnapshot.val();
-            if (chatsData) {
-                this.chats = Object.values(chatsData).sort((a, b) => 
-                    new Date(b.createdAt) - new Date(a.createdAt)
-                );
+    async loadData() {
+        // Always load from localStorage first (instant)
+        this.chats = JSON.parse(localStorage.getItem('unfiltered_chats') || '[]');
+        this.settings = JSON.parse(localStorage.getItem('unfiltered_settings') || '{}');
+        this.memories = JSON.parse(localStorage.getItem('unfiltered_memories') || '[]');
+        
+        // Then try Firebase
+        if (firebaseEnabled && db) {
+            try {
+                const [chatsSnap, settingsSnap, memoriesSnap] = await Promise.all([
+                    db.ref(`users/${this.userId}/chats`).once('value'),
+                    db.ref(`users/${this.userId}/settings`).once('value'),
+                    db.ref(`users/${this.userId}/memories`).once('value')
+                ]);
+                
+                const chatsData = chatsSnap.val();
+                if (chatsData) {
+                    this.chats = Object.values(chatsData).sort((a, b) => 
+                        new Date(b.createdAt) - new Date(a.createdAt)
+                    );
+                    localStorage.setItem('unfiltered_chats', JSON.stringify(this.chats));
+                }
+                
+                const settingsData = settingsSnap.val();
+                if (settingsData) {
+                    this.settings = settingsData;
+                    localStorage.setItem('unfiltered_settings', JSON.stringify(this.settings));
+                    this.loadSettingsToUI();
+                }
+                
+                const memoriesData = memoriesSnap.val();
+                if (memoriesData) {
+                    this.memories = Object.values(memoriesData).sort((a, b) => 
+                        new Date(b.createdAt) - new Date(a.createdAt)
+                    );
+                    localStorage.setItem('unfiltered_memories', JSON.stringify(this.memories));
+                }
+            } catch (e) {
+                console.log('Firebase load error:', e);
             }
-
-            // Load settings
-            const settingsSnapshot = await db.ref(`users/${this.userId}/settings`).once('value');
-            const settingsData = settingsSnapshot.val();
-            if (settingsData) {
-                this.settings = settingsData;
-                this.loadSettingsToUI();
-            }
-
-            // Load memories
-            const memoriesSnapshot = await db.ref(`users/${this.userId}/memories`).once('value');
-            const memoriesData = memoriesSnapshot.val();
-            if (memoriesData) {
-                this.memories = Object.values(memoriesData).sort((a, b) => 
-                    new Date(b.createdAt) - new Date(a.createdAt)
-                );
-            }
-        } catch (e) {
-            console.log('Firebase load error, using local:', e);
-            this.chats = JSON.parse(localStorage.getItem('unfiltered_chats') || '[]');
-            this.settings = JSON.parse(localStorage.getItem('unfiltered_settings') || '{}');
-            this.memories = JSON.parse(localStorage.getItem('unfiltered_memories') || '[]');
         }
     }
 
-    async saveToFirebase() {
-        try {
-            // Save chats
-            const chatsObj = {};
-            this.chats.forEach(chat => { chatsObj[chat.id] = chat; });
-            await db.ref(`users/${this.userId}/chats`).set(chatsObj);
-
-            // Save settings
-            await db.ref(`users/${this.userId}/settings`).set(this.settings);
-
-            // Save memories
-            const memoriesObj = {};
-            this.memories.forEach(mem => { memoriesObj[mem.id] = mem; });
-            await db.ref(`users/${this.userId}/memories`).set(memoriesObj);
-        } catch (e) {
-            console.log('Firebase save error:', e);
-        }
-        // Also save locally as backup
+    async saveData() {
+        // Always save to localStorage first
         localStorage.setItem('unfiltered_chats', JSON.stringify(this.chats));
         localStorage.setItem('unfiltered_settings', JSON.stringify(this.settings));
         localStorage.setItem('unfiltered_memories', JSON.stringify(this.memories));
+        
+        // Then save to Firebase
+        if (firebaseEnabled && db) {
+            try {
+                const chatsObj = {};
+                this.chats.forEach(chat => { chatsObj[chat.id] = chat; });
+                
+                const memoriesObj = {};
+                (this.memories || []).forEach(mem => { memoriesObj[mem.id] = mem; });
+                
+                await Promise.all([
+                    db.ref(`users/${this.userId}/chats`).set(chatsObj),
+                    db.ref(`users/${this.userId}/settings`).set(this.settings),
+                    db.ref(`users/${this.userId}/memories`).set(memoriesObj)
+                ]);
+            } catch (e) {
+                console.log('Firebase save error:', e);
+            }
+        }
     }
 
     bindElements() {
@@ -250,7 +276,7 @@ class UnfilteredAI {
             createdAt: new Date().toISOString()
         };
         this.chats.unshift(chat);
-        this.saveToFirebase();
+        this.saveData();
         this.renderChatList();
         return chat.id;
     }
@@ -282,7 +308,7 @@ class UnfilteredAI {
             try {
                 await db.ref(`users/${this.userId}/chats/${chatId}`).remove();
             } catch (e) {}
-            this.saveToFirebase();
+            this.saveData();
             this.renderChatList();
             if (this.currentChatId === chatId) {
                 this.newChat();
@@ -343,7 +369,7 @@ class UnfilteredAI {
 
         chat.messages.push({ role: 'user', content });
         this.renderMessage('user', content);
-        this.saveToFirebase();
+        this.saveData();
 
         this.messageInput.value = '';
         this.messageInput.style.height = 'auto';
@@ -412,7 +438,7 @@ class UnfilteredAI {
                 this.renderChatList();
             }
 
-            this.saveToFirebase();
+            this.saveData();
 
         } catch (error) {
             console.error('Error:', error);
@@ -639,7 +665,7 @@ class UnfilteredAI {
             responseStyle: this.responseStyle.value,
             codeStyle: this.codeStyle.value
         };
-        await this.saveToFirebase();
+        await this.saveData();
         this.closeSettingsModal();
         this.showToast('Settings saved!');
     }
@@ -664,7 +690,7 @@ class UnfilteredAI {
             createdAt: new Date().toISOString()
         };
         this.memories.unshift(memory);
-        await this.saveToFirebase();
+        await this.saveData();
     }
 
     async deleteMemory(memoryId) {
@@ -672,7 +698,7 @@ class UnfilteredAI {
         try {
             await db.ref(`users/${this.userId}/memories/${memoryId}`).remove();
         } catch (e) {}
-        await this.saveToFirebase();
+        await this.saveData();
         this.renderMemoryList();
     }
 
