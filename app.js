@@ -87,8 +87,19 @@ class UnfilteredAI {
             this.setupRealtimeListeners();
         }
         this.renderChatList();
+        // Collapse sidebar if no chats exist
+        this.updateSidebarVisibility();
         // Always start with new chat
         this.newChat();
+    }
+
+    updateSidebarVisibility() {
+        // Hide sidebar if no chats, show if chats exist
+        if (this.chats.length === 0) {
+            this.sidebar.classList.add('collapsed');
+        } else {
+            this.sidebar.classList.remove('collapsed');
+        }
     }
 
     setupRealtimeListeners() {
@@ -335,6 +346,8 @@ class UnfilteredAI {
         this.chats.unshift(chat);
         this.saveData();
         this.renderChatList();
+        // Expand sidebar when first chat is created
+        this.updateSidebarVisibility();
         return chat.id;
     }
 
