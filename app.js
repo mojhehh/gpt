@@ -459,6 +459,7 @@ class UnfilteredAI {
             }
 
             const roastModeEnabled = this.roastModeToggle.checked;
+            console.log('Roast mode:', roastModeEnabled, 'Web search:', webSearchEnabled);
 
             const response = await fetch(`${this.apiUrl}/chat`, {
                 method: 'POST',
