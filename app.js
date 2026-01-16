@@ -448,7 +448,11 @@ class UnfilteredAI {
             // Update title if received
             if (data.title) {
                 console.log('Received title:', data.title);
-                chat.title = data.title;
+                // Find and update the chat in the array directly
+                const chatIndex = this.chats.findIndex(c => c.id === this.currentChatId);
+                if (chatIndex !== -1) {
+                    this.chats[chatIndex].title = data.title;
+                }
                 this.renderChatList();
             }
 
