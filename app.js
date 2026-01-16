@@ -50,9 +50,8 @@ class UnfilteredAI {
             this.setupRealtimeListeners();
         }
         this.renderChatList();
-        if (this.chats.length > 0) {
-            this.loadChat(this.chats[0].id);
-        }
+        // Always start with new chat
+        this.newChat();
     }
 
     setupRealtimeListeners() {
@@ -193,6 +192,7 @@ class UnfilteredAI {
         this.messageInput = document.getElementById('messageInput');
         this.sendBtn = document.getElementById('sendBtn');
         this.webSearchToggle = document.getElementById('webSearchToggle');
+        this.roastModeToggle = document.getElementById('roastModeToggle');
         this.settingsModal = document.getElementById('settingsModal');
         this.closeSettings = document.getElementById('closeSettings');
         this.customInstructions = document.getElementById('customInstructions');
@@ -410,6 +410,8 @@ class UnfilteredAI {
                 customInstructions += '\n' + (codeStyles[this.settings.codeStyle] || '');
             }
 
+            const roastModeEnabled = this.roastModeToggle.checked;
+
             const response = await fetch(`${this.apiUrl}/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -419,7 +421,8 @@ class UnfilteredAI {
                     customInstructions: customInstructions.trim() || undefined,
                     webSearch: webSearchEnabled,
                     searchQuery: content,
-                    memories: (this.memories || []).map(m => m.content)
+                    memories: (this.memories || []).map(m => m.content),
+                    roastMode: roastModeEnabled
                 })
             });
 
