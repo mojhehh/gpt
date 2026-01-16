@@ -94,13 +94,24 @@ class UnfilteredAI {
     setupRealtimeListeners() {
         if (!db) return;
         
-        // Real-time listener for chats
+        // Real-time listener for chats - but don't overwrite current chat being edited
         db.ref(`users/${this.userId}/chats`).on('value', (snapshot) => {
             const chatsData = snapshot.val();
             if (chatsData) {
-                this.chats = Object.values(chatsData).sort((a, b) => 
+                const newChats = Object.values(chatsData).sort((a, b) => 
                     new Date(b.createdAt) - new Date(a.createdAt)
                 );
+                
+                // Preserve current chat's messages if we're in the middle of a conversation
+                if (this.currentChatId && this.isProcessing) {
+                    const currentChat = this.chats.find(c => c.id === this.currentChatId);
+                    const incomingChat = newChats.find(c => c.id === this.currentChatId);
+                    if (currentChat && incomingChat) {
+                        incomingChat.messages = currentChat.messages;
+                    }
+                }
+                
+                this.chats = newChats;
                 localStorage.setItem('unfiltered_chats', JSON.stringify(this.chats));
             }
             this.renderChatList();
@@ -479,7 +490,13 @@ class UnfilteredAI {
             }
 
             const reply = data.reply || 'Sorry, I could not generate a response.';
-            chat.messages.push({ role: 'assistant', content: reply });
+            
+            // Find the chat fresh from the array to avoid stale reference
+            const currentChat = this.chats.find(c => c.id === this.currentChatId);
+            if (currentChat) {
+                if (!currentChat.messages) currentChat.messages = [];
+                currentChat.messages.push({ role: 'assistant', content: reply });
+            }
             this.renderMessage('assistant', reply);
 
             // Update title if received
@@ -493,7 +510,8 @@ class UnfilteredAI {
                 this.renderChatList();
             }
 
-            this.saveData();
+            // Save immediately after adding assistant message
+            await this.saveData();
 
         } catch (error) {
             console.error('Error:', error);
