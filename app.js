@@ -475,21 +475,34 @@ class UnfilteredAI {
             const roastModeEnabled = this.roastModeToggle.checked;
             console.log('Roast mode:', roastModeEnabled, 'Web search:', webSearchEnabled);
 
-            const response = await fetch(`${this.apiUrl}/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messages: chat.messages,
-                    generateTitle: isFirstMessage,
-                    customInstructions: customInstructions.trim() || undefined,
-                    webSearch: webSearchEnabled,
-                    searchQuery: content,
-                    memories: (this.memories || []).map(m => m.content),
-                    roastMode: roastModeEnabled
-                })
-            });
+            // Retry logic for rate limits
+            let response, data;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                response = await fetch(`${this.apiUrl}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: chat.messages.slice(-10), // Send only last 10 messages
+                        generateTitle: isFirstMessage,
+                        customInstructions: customInstructions.trim() || undefined,
+                        webSearch: webSearchEnabled,
+                        searchQuery: content,
+                        memories: (this.memories || []).map(m => m.content),
+                        roastMode: roastModeEnabled
+                    })
+                });
 
-            const data = await response.json();
+                data = await response.json();
+
+                if (data.error && (response.status === 429 || response.status === 503)) {
+                    // Rate limited - wait and retry
+                    if (attempt < 2) {
+                        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+                        continue;
+                    }
+                }
+                break;
+            }
 
             if (data.error) {
                 throw new Error(data.error);
